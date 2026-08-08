@@ -1,0 +1,49 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "ledgerly",
+	"main": "worker/index.ts",
+	"compatibility_date": "2025-01-15",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"assets": {
+		"directory": "dist/client",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"observability": {
+		"enabled": true
+	},
+	// One public hostname is enough for a private app; per-version preview URLs
+	// would add more. (They are gated by the owner login either way.)
+	"preview_urls": false,
+	// Non-secret configuration. Secrets go through `wrangler secret put`.
+	"vars": {
+		"LEDGERLY_TIMEZONE": "Asia/Kolkata"
+	},
+	// Structured, durable data. Create with:
+	//   npx wrangler d1 create ledgerly-db
+	// then paste the returned database_id below.
+	"d1_databases": [
+		{
+			// Must stay "DB" — worker/ code reads env.DB.
+			"binding": "DB",
+			"database_name": "ledgerly-db",
+			"database_id": "4c8dc40c-fbfe-4ed2-8ea9-b3f9c9e6cc8a"
+		}
+	],
+	// Original uploaded / imported file bytes. Create with:
+	//   npx wrangler r2 bucket create ledgerly-files
+	"r2_buckets": [
+		{
+			// Must stay "BUCKET" — worker/ code reads env.BUCKET.
+			"binding": "BUCKET",
+			"bucket_name": "ledgerly-files"
+		}
+	]
+	// Secrets (never commit these):
+	//   npx wrangler secret put DRIVE_SYNC_TOKEN
+}

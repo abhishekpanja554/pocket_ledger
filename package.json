@@ -1,0 +1,32 @@
+{
+  "name": "ledgerly",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b --noEmit && vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "typecheck": "tsc -b --noEmit",
+    "db:local": "wrangler d1 execute ledgerly-db --local --file=./schema.sql",
+    "db:remote": "wrangler d1 execute ledgerly-db --remote --file=./schema.sql",
+    "verify": "node scripts/verify.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "lucide-react": "^0.468.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.0.12",
+    "@cloudflare/workers-types": "^5.20260730.1",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5",
+    "wrangler": "^4.0.0"
+  }
+}
