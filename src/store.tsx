@@ -163,6 +163,23 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
     void reload();
   }, [reload]);
 
+  // If email verification happens in another tab (clicking the link in the
+  // verification email), refresh who-am-I when this tab regains focus so the
+  // "please verify" banner clears itself instead of needing some unrelated
+  // action to happen to trigger a reload first.
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState !== "visible") return;
+      if (status !== "ready") return;
+      api.me().then(setUser).catch(() => {
+        // A 401 here just means the session lapsed while the tab was away —
+        // the next real action will surface that through the normal path.
+      });
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [status]);
+
   /* ------------------------------------------------------------- mutations */
 
   const setPeriod = useCallback(

@@ -10,7 +10,14 @@ import {
 import { useRef, useState } from "react";
 import type { DocumentRow } from "../../shared/types";
 import { useUi } from "../App";
-import { Card, CardHead, ConfirmDialog, EmptyState, Notice } from "../components/ui";
+import {
+  Card,
+  CardHead,
+  ConfirmDialog,
+  EmptyState,
+  Notice,
+  useFileDrop,
+} from "../components/ui";
 import { api } from "../lib/api";
 import { fileKind, formatBytes, formatTimestamp } from "../lib/format";
 import { useAppState, usePocketLedger } from "../store";
@@ -27,8 +34,9 @@ export function Documents() {
   const [deleting, setDeleting] = useState(false);
 
   const { driveFolder, driveSchedule, driveSync } = state.settings;
+  const { isDragging, dropProps } = useFileDrop((files) => void onFiles(files));
 
-  async function onFiles(files: FileList | null) {
+  async function onFiles(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
     setBusy(true);
     setErrors([]);
@@ -73,33 +81,39 @@ export function Documents() {
         <Card>
           <CardHead
             title="Upload documents"
-            hint="Receipts, statements, invoices, PDFs, images, CSVs and spreadsheets. 20 MB maximum per file."
+            hint="Receipts, statements, invoices, PDFs, images, CSVs and spreadsheets. 20 MB maximum per file. Drag files here, or choose them."
           />
-          <input
-            ref={fileRef}
-            type="file"
-            multiple
-            className="sr-only"
-            accept="image/*,application/pdf,.csv,.xlsx,.xls,.txt,.tsv"
-            onChange={(event) => void onFiles(event.target.files)}
-          />
-          <div className="row">
-            <button
-              type="button"
-              className="btn btn--primary"
-              onClick={() => fileRef.current?.click()}
-              disabled={busy}
-            >
-              <Upload size={16} aria-hidden="true" />
-              {busy ? "Uploading…" : "Choose files"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              onClick={() => openModal("import")}
-            >
-              Open the full import flow
-            </button>
+          <div
+            className={`drop-zone stack ${isDragging ? "drop-zone--active" : ""}`}
+            style={{ padding: 4 }}
+            {...dropProps}
+          >
+            <input
+              ref={fileRef}
+              type="file"
+              multiple
+              className="sr-only"
+              accept="image/*,application/pdf,.csv,.xlsx,.xls,.txt,.tsv"
+              onChange={(event) => void onFiles(event.target.files)}
+            />
+            <div className="row">
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+              >
+                <Upload size={16} aria-hidden="true" />
+                {busy ? "Uploading…" : "Choose files"}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                onClick={() => openModal("import")}
+              >
+                Open the full import flow
+              </button>
+            </div>
           </div>
 
           {errors.map((message, index) => (

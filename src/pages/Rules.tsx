@@ -10,6 +10,7 @@ import {
   Modal,
   Notice,
   Spinner,
+  useConfirmClose,
 } from "../components/ui";
 import { useAppState, usePocketLedger } from "../store";
 
@@ -363,6 +364,12 @@ function RuleModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const isDirty =
+    whenText !== (rule?.whenText ?? "") ||
+    thenText !== (rule?.thenText ?? "") ||
+    enabled !== (rule?.enabled ?? true);
+  const { requestClose, discardPrompt } = useConfirmClose(isDirty, onClose);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const next: Record<string, string> = {};
@@ -391,13 +398,14 @@ function RuleModal({
   }
 
   return (
+    <>
     <Modal
       title={rule ? "Edit rule" : "Create rule"}
       subtitle="Rules run on new imports only, after duplicates are filtered out."
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             Cancel
           </button>
           <button
@@ -456,5 +464,7 @@ function RuleModal({
         </label>
       </form>
     </Modal>
+    {discardPrompt}
+    </>
   );
 }

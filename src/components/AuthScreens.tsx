@@ -1,7 +1,50 @@
-import { KeyRound, Lock, Mail, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, KeyRound, Lock, Mail, ShieldCheck } from "lucide-react";
 import { useEffect, useId, useState } from "react";
 import { ApiError, type AuthUser } from "../lib/api";
 import { Field, Notice, Spinner } from "./ui";
+
+/** A password input with a show/hide toggle — every password field uses this. */
+function PasswordField({
+  id,
+  value,
+  onChange,
+  autoComplete,
+  autoFocus,
+}: {
+  id: string;
+  value: string;
+  onChange: (value: string) => void;
+  autoComplete: "current-password" | "new-password";
+  autoFocus?: boolean;
+}) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="password-field">
+      <input
+        id={id}
+        className="input"
+        type={visible ? "text" : "password"}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      <button
+        type="button"
+        className="password-field__toggle"
+        onClick={() => setVisible((current) => !current)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        tabIndex={-1}
+      >
+        {visible ? (
+          <EyeOff size={16} aria-hidden="true" />
+        ) : (
+          <Eye size={16} aria-hidden="true" />
+        )}
+      </button>
+    </div>
+  );
+}
 
 /**
  * Every screen here shares the same card shell the old passphrase-only
@@ -92,14 +135,12 @@ export function LoginScreen({
         </Field>
 
         <Field label="Password" htmlFor={passwordId}>
-          <input
+          <PasswordField
             id={passwordId}
-            className="input"
-            type="password"
-            autoComplete="current-password"
             value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
+            autoComplete="current-password"
+            onChange={(value) => {
+              setPassword(value);
               setError(null);
             }}
           />
@@ -201,28 +242,24 @@ export function RegisterScreen({
         </Field>
 
         <Field label="Password" hint="At least 8 characters." htmlFor={passwordId}>
-          <input
+          <PasswordField
             id={passwordId}
-            className="input"
-            type="password"
-            autoComplete="new-password"
             value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
+            autoComplete="new-password"
+            onChange={(value) => {
+              setPassword(value);
               setError(null);
             }}
           />
         </Field>
 
         <Field label="Confirm password" htmlFor={confirmId}>
-          <input
+          <PasswordField
             id={confirmId}
-            className="input"
-            type="password"
-            autoComplete="new-password"
             value={confirm}
-            onChange={(event) => {
-              setConfirm(event.target.value);
+            autoComplete="new-password"
+            onChange={(value) => {
+              setConfirm(value);
               setError(null);
             }}
           />
@@ -402,29 +439,25 @@ export function ResetPasswordScreen({
         {error ? <Notice kind="error">{error}</Notice> : null}
 
         <Field label="New password" hint="At least 8 characters." htmlFor={passwordId}>
-          <input
+          <PasswordField
             id={passwordId}
-            className="input"
-            type="password"
+            value={password}
             autoComplete="new-password"
             autoFocus
-            value={password}
-            onChange={(event) => {
-              setPassword(event.target.value);
+            onChange={(value) => {
+              setPassword(value);
               setError(null);
             }}
           />
         </Field>
 
         <Field label="Confirm new password" htmlFor={confirmId}>
-          <input
+          <PasswordField
             id={confirmId}
-            className="input"
-            type="password"
-            autoComplete="new-password"
             value={confirm}
-            onChange={(event) => {
-              setConfirm(event.target.value);
+            autoComplete="new-password"
+            onChange={(value) => {
+              setConfirm(value);
               setError(null);
             }}
           />

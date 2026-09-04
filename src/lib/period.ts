@@ -29,6 +29,20 @@ function iso(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/**
+ * `today` arrives as a genuine "now" instant in the browser's local timezone
+ * (IST). Reading it with UTC getters — or round-tripping it through
+ * `toISOString()` — shifts the calendar date backward for roughly 5.5 hours
+ * every day (IST midnight to 5:30 AM, UTC's date is still "yesterday"),
+ * which silently excluded same-day transactions from every period filter,
+ * "All time" included. Normalizing to a UTC-midnight stand-in for the same
+ * *local* calendar date keeps all the UTC-domain month-boundary arithmetic
+ * below correct while fixing that one mismatch.
+ */
+function normalizeToLocalCalendarDate(date: Date): Date {
+  return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+}
+
 function startOfMonth(year: number, month: number): Date {
   return new Date(Date.UTC(year, month, 1));
 }
@@ -42,9 +56,10 @@ function endOfMonth(year: number, month: number): Date {
  * today is included.
  */
 export function rangeFor(period: PeriodId, today = new Date()): DateRange {
-  const y = today.getUTCFullYear();
-  const m = today.getUTCMonth();
-  const end = iso(today);
+  const normalized = normalizeToLocalCalendarDate(today);
+  const y = normalized.getUTCFullYear();
+  const m = normalized.getUTCMonth();
+  const end = iso(normalized);
 
   switch (period) {
     case "this-month":
@@ -88,8 +103,9 @@ export function priorRangeFor(
   period: PeriodId,
   today = new Date(),
 ): DateRange | null {
-  const y = today.getUTCFullYear();
-  const m = today.getUTCMonth();
+  const normalized = normalizeToLocalCalendarDate(today);
+  const y = normalized.getUTCFullYear();
+  const m = normalized.getUTCMonth();
 
   switch (period) {
     case "this-month":

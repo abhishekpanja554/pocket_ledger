@@ -1,8 +1,18 @@
 import { Plus, Sliders, Trash2, Wallet } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 import type { Budget } from "../../shared/types";
-import { Card, CardHead, EmptyState, Field, Modal, Notice, ProgressBar, Spinner } from "../components/ui";
-import { LOCALE, money, percent } from "../lib/format";
+import {
+  Card,
+  CardHead,
+  EmptyState,
+  Field,
+  Modal,
+  Notice,
+  ProgressBar,
+  Spinner,
+  useConfirmClose,
+} from "../components/ui";
+import { LOCALE, money, percent, todayISO } from "../lib/format";
 import { useAppState, usePocketLedger } from "../store";
 
 interface BudgetStat {
@@ -21,7 +31,10 @@ export function Budgets() {
   const [editing, setEditing] = useState<Budget | "new" | null>(null);
   const [adjusting, setAdjusting] = useState(false);
 
-  const monthKey = new Date().toISOString().slice(0, 7);
+  // Local calendar month, not UTC — a UTC-derived "today" runs a day behind
+  // IST for part of every day, which on the 1st of the month would attribute
+  // that day's spending to the wrong month entirely.
+  const monthKey = todayISO().slice(0, 7);
 
   const stats = useMemo<BudgetStat[]>(() => {
     const spendByCategory = new Map<string, number>();
@@ -322,6 +335,12 @@ function BudgetModal({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const isDirty =
+    category !== (budget?.category ?? available[0] ?? categories[0] ?? "") ||
+    limit !== (budget ? String(budget.limit) : "") ||
+    active !== (budget?.active ?? true);
+  const { requestClose, discardPrompt } = useConfirmClose(isDirty, onClose);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const amount = Number(limit);
@@ -351,12 +370,13 @@ function BudgetModal({
   }
 
   return (
+    <>
     <Modal
       title={budget ? "Edit budget" : "Create budget"}
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             Cancel
           </button>
           <button
@@ -416,6 +436,8 @@ function BudgetModal({
         </label>
       </form>
     </Modal>
+    {discardPrompt}
+    </>
   );
 }
 
@@ -431,6 +453,9 @@ function AdjustBudgetsModal({
   const [draft, setDraft] = useState<Budget[]>(budgets);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(budgets);
+  const { requestClose, discardPrompt } = useConfirmClose(isDirty, onClose);
 
   async function save() {
     if (draft.some((b) => !Number.isFinite(b.limit) || b.limit <= 0)) {
@@ -449,14 +474,15 @@ function AdjustBudgetsModal({
   }
 
   return (
+    <>
     <Modal
       title="Adjust budgets"
       subtitle="Change limits, pause a budget, or remove one."
-      onClose={onClose}
+      onClose={requestClose}
       wide
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             Cancel
           </button>
           <button
@@ -525,5 +551,7 @@ function AdjustBudgetsModal({
         ))
       )}
     </Modal>
+    {discardPrompt}
+    </>
   );
 }

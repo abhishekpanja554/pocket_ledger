@@ -2,7 +2,7 @@ import { Paperclip } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import type { Transaction, TxType } from "../../shared/types";
 import { TagPicker } from "../components/TagPicker";
-import { Field, Modal, Notice, Spinner } from "../components/ui";
+import { Field, Modal, Notice, Spinner, useConfirmClose } from "../components/ui";
 import { formatDate, todayISO } from "../lib/format";
 import { usePocketLedger } from "../store";
 
@@ -69,6 +69,19 @@ export function AddEntryModal({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const noAccounts = accounts.length === 0;
+
+  const isDirty =
+    amount !== (transaction ? String(transaction.amount) : "") ||
+    merchant !== (transaction?.merchant ?? "") ||
+    date !== (transaction?.date ?? todayISO()) ||
+    category !== (transaction?.category ?? categories[0] ?? "Needs review") ||
+    account !== (transaction?.account ?? accounts[0] ?? "") ||
+    type !== (transaction?.type ?? "expense") ||
+    hasReceipt !== (transaction?.receipt ?? false) ||
+    file !== null ||
+    JSON.stringify(tags) !== JSON.stringify(transaction?.tags ?? []);
+
+  const { requestClose, discardPrompt } = useConfirmClose(isDirty, onClose);
 
   function validate(): boolean {
     const next: Record<string, string> = {};
@@ -179,6 +192,7 @@ export function AddEntryModal({
   }
 
   return (
+    <>
     <Modal
       title={isEdit ? "Edit transaction" : "Add entry"}
       subtitle={
@@ -186,10 +200,10 @@ export function AddEntryModal({
           ? `Saved ${formatDate(transaction.date)} · from ${transaction.source}`
           : "Record one expense or income transaction."
       }
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             Cancel
           </button>
           <button
@@ -373,5 +387,7 @@ export function AddEntryModal({
         ) : null}
       </form>
     </Modal>
+    {discardPrompt}
+    </>
   );
 }

@@ -10,6 +10,7 @@ import {
   Notice,
   ProgressBar,
   Spinner,
+  useConfirmClose,
 } from "../components/ui";
 import { formatDate, money, percent } from "../lib/format";
 import { useAppState, usePocketLedger } from "../store";
@@ -199,6 +200,14 @@ function GoalModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const isDirty =
+    name !== (goal?.name ?? "") ||
+    target !== (goal ? String(goal.target) : "") ||
+    current !== (goal ? String(goal.current) : "") ||
+    dueDate !== (goal?.dueDate ?? "") ||
+    note !== (goal?.note ?? "");
+  const { requestClose, discardPrompt } = useConfirmClose(isDirty, onClose);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     const next: Record<string, string> = {};
@@ -234,12 +243,13 @@ function GoalModal({
   }
 
   return (
+    <>
     <Modal
       title={goal ? "Edit goal" : "Create goal"}
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             Cancel
           </button>
           <button
@@ -321,5 +331,7 @@ function GoalModal({
         </Field>
       </form>
     </Modal>
+    {discardPrompt}
+    </>
   );
 }

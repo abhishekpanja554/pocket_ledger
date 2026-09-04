@@ -1,5 +1,5 @@
 import { X } from "lucide-react";
-import { useEffect, useId, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 
 /* =================================================================== card */
 
@@ -326,4 +326,75 @@ export function ConfirmDialog({
       {typeof body === "string" ? <p>{body}</p> : body}
     </Modal>
   );
+}
+
+/* ========================================================== confirm-close */
+
+/**
+ * Guards a modal's close against accidentally discarding typed input —
+ * Escape and a backdrop click are one keystroke/click away in every modal,
+ * and neither should silently throw away a half-filled form.
+ *
+ * Usage: pass `requestClose` as both the Modal's `onClose` and the form's
+ * own Cancel button, and render `discardPrompt` alongside the modal.
+ */
+export function useConfirmClose(isDirty: boolean, onClose: () => void) {
+  const [confirming, setConfirming] = useState(false);
+
+  const requestClose = useCallback(() => {
+    if (isDirty) setConfirming(true);
+    else onClose();
+  }, [isDirty, onClose]);
+
+  const discardPrompt = confirming ? (
+    <ConfirmDialog
+      title="Discard changes?"
+      body="What you've entered here hasn't been saved. Leaving now will lose it."
+      confirmLabel="Discard"
+      onCancel={() => setConfirming(false)}
+      onConfirm={() => {
+        setConfirming(false);
+        onClose();
+      }}
+    />
+  ) : null;
+
+  return { requestClose, discardPrompt };
+}
+
+/* ============================================================ file drop */
+
+/**
+ * Adds drag-and-drop to any container that already has a working
+ * click-to-browse file input — spread `dropProps` onto that container and
+ * read `isDragging` to show a highlight while a file is over it.
+ */
+export function useFileDrop(onFiles: (files: File[]) => void) {
+  const [isDragging, setIsDragging] = useState(false);
+  const depth = useRef(0);
+
+  const dropProps = {
+    onDragEnter: (event: React.DragEvent) => {
+      event.preventDefault();
+      depth.current += 1;
+      if (event.dataTransfer.types.includes("Files")) setIsDragging(true);
+    },
+    onDragOver: (event: React.DragEvent) => {
+      event.preventDefault();
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      event.preventDefault();
+      depth.current = Math.max(0, depth.current - 1);
+      if (depth.current === 0) setIsDragging(false);
+    },
+    onDrop: (event: React.DragEvent) => {
+      event.preventDefault();
+      depth.current = 0;
+      setIsDragging(false);
+      const files = [...event.dataTransfer.files];
+      if (files.length > 0) onFiles(files);
+    },
+  };
+
+  return { isDragging, dropProps };
 }

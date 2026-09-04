@@ -1,7 +1,7 @@
 import { CheckCircle2, FileSpreadsheet, FileUp, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import type { TransactionInput } from "../../shared/types";
-import { Field, Modal, Notice, Spinner } from "../components/ui";
+import { Field, Modal, Notice, Spinner, useFileDrop } from "../components/ui";
 import {
   COLUMN_ROLE_LABELS,
   findHeaderRow,
@@ -98,6 +98,10 @@ function CsvImport({ onClose }: { onClose: () => void }) {
   const accounts = state?.settings.accounts ?? [];
   const [fallbackAccount, setFallbackAccount] = useState(
     accounts[0] ?? "Imported account",
+  );
+
+  const { isDragging, dropProps } = useFileDrop((files) =>
+    void onFileChosen(files[0] ?? null),
   );
 
   /** Turns a parsed grid into the mapping step, finding the real header row. */
@@ -249,12 +253,16 @@ function CsvImport({ onClose }: { onClose: () => void }) {
         </div>
         {summary.errors.length ? (
           <div className="stack" style={{ gap: 6 }}>
-            <p className="field__label">Details</p>
-            {summary.errors.slice(0, 5).map((message, index) => (
-              <p className="field__hint" key={index}>
-                {message}
-              </p>
-            ))}
+            <p className="field__label">
+              Details ({summary.errors.length})
+            </p>
+            <div className="scroll-list">
+              {summary.errors.map((message, index) => (
+                <p className="field__hint" key={index}>
+                  {message}
+                </p>
+              ))}
+            </div>
           </div>
         ) : null}
         <div className="row row--between">
@@ -450,21 +458,27 @@ function CsvImport({ onClose }: { onClose: () => void }) {
         and duplicates are skipped automatically.
       </p>
       {error ? <Notice kind="error">{error}</Notice> : null}
-      <input
-        ref={fileRef}
-        type="file"
-        accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        className="sr-only"
-        onChange={(event) => void onFileChosen(event.target.files?.[0] ?? null)}
-      />
-      <button
-        type="button"
-        className="btn btn--primary btn--block"
-        onClick={() => fileRef.current?.click()}
+      <div
+        className={`drop-zone ${isDragging ? "drop-zone--active" : ""}`}
+        style={{ padding: 4 }}
+        {...dropProps}
       >
-        <FileSpreadsheet size={17} aria-hidden="true" />
-        Choose a file
-      </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept=".csv,.tsv,.txt,.xlsx,.xlsm,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          className="sr-only"
+          onChange={(event) => void onFileChosen(event.target.files?.[0] ?? null)}
+        />
+        <button
+          type="button"
+          className="btn btn--primary btn--block"
+          onClick={() => fileRef.current?.click()}
+        >
+          <FileSpreadsheet size={17} aria-hidden="true" />
+          Choose a file, or drag one here
+        </button>
+      </div>
     </div>
   );
 }
@@ -487,6 +501,11 @@ function DocumentImport({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [done, setDone] = useState<number | null>(null);
+
+  const { isDragging, dropProps } = useFileDrop((dropped) => {
+    setFiles(dropped);
+    setDone(null);
+  });
 
   async function upload() {
     if (files.length === 0) return;
@@ -535,26 +554,32 @@ function DocumentImport({ onClose }: { onClose: () => void }) {
         </Notice>
       ))}
 
-      <input
-        ref={fileRef}
-        type="file"
-        multiple
-        className="sr-only"
-        accept="image/*,application/pdf,.csv,.xlsx,.xls,.txt,.tsv"
-        onChange={(event) => {
-          setFiles([...(event.target.files ?? [])]);
-          setDone(null);
-        }}
-      />
-
-      <button
-        type="button"
-        className="btn btn--block"
-        onClick={() => fileRef.current?.click()}
+      <div
+        className={`drop-zone ${isDragging ? "drop-zone--active" : ""}`}
+        style={{ padding: 4 }}
+        {...dropProps}
       >
-        <FileUp size={17} aria-hidden="true" />
-        Choose files
-      </button>
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          className="sr-only"
+          accept="image/*,application/pdf,.csv,.xlsx,.xls,.txt,.tsv"
+          onChange={(event) => {
+            setFiles([...(event.target.files ?? [])]);
+            setDone(null);
+          }}
+        />
+
+        <button
+          type="button"
+          className="btn btn--block"
+          onClick={() => fileRef.current?.click()}
+        >
+          <FileUp size={17} aria-hidden="true" />
+          Choose files, or drag them here
+        </button>
+      </div>
 
       {files.length > 0 ? (
         <div className="card card--pad">

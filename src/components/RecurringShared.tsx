@@ -3,7 +3,7 @@ import { useId, useState } from "react";
 import type { Cadence } from "../../shared/types";
 import { formatDate, money, percent, relativeDueLabel, todayISO } from "../lib/format";
 import { CADENCE_LABEL, type DetectedPattern } from "../lib/recurring";
-import { Field, Modal, Notice, Spinner } from "./ui";
+import { Field, Modal, Notice, Spinner, useConfirmClose } from "./ui";
 
 export const CADENCE_OPTIONS: Array<{ value: Cadence; label: string }> = [
   { value: "weekly", label: "Weekly" },
@@ -152,6 +152,9 @@ export function EntryFormModal({
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const isDirty = JSON.stringify(value) !== JSON.stringify(draft);
+  const { requestClose, discardPrompt } = useConfirmClose(isDirty, onClose);
+
   function update<K extends keyof EntryDraft>(key: K, next: EntryDraft[K]) {
     setValue((current) => ({ ...current, [key]: next }));
   }
@@ -183,9 +186,10 @@ export function EntryFormModal({
   }
 
   return (
+    <>
     <Modal
       title={title}
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
           {onDelete ? (
@@ -199,7 +203,7 @@ export function EntryFormModal({
               Delete
             </button>
           ) : null}
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             Cancel
           </button>
           <button
@@ -319,6 +323,8 @@ export function EntryFormModal({
         </label>
       </form>
     </Modal>
+    {discardPrompt}
+    </>
   );
 }
 

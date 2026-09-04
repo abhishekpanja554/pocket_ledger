@@ -1,6 +1,6 @@
-import { Check, Pencil, Plus, Receipt, Search, Trash2, X } from "lucide-react";
+import { Check, Pencil, Plus, Receipt, Search, Tag as TagIcon, Trash2, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import type { Transaction } from "../../shared/types";
+import type { Tag, Transaction } from "../../shared/types";
 import { useUi } from "../App";
 import { PeriodSelector } from "../components/PeriodSelector";
 import { TagPicker } from "../components/TagPicker";
@@ -12,14 +12,17 @@ import {
   Modal,
   Notice,
   Spinner,
+  useConfirmClose,
 } from "../components/ui";
 import { formatDate, money, signedMoney } from "../lib/format";
 import { filterByPeriod, periodLabel } from "../lib/period";
 import { useAppState, usePocketLedger } from "../store";
 
+type BulkAction = "category" | "tag" | "delete" | null;
+
 export function Transactions() {
   const state = useAppState();
-  const { notify, deleteTransaction } = usePocketLedger();
+  const { notify, deleteTransaction, updateTransaction } = usePocketLedger();
   const { openModal } = useUi();
 
   const [search, setSearch] = useState("");
@@ -29,6 +32,9 @@ export function Transactions() {
   const [editTarget, setEditTarget] = useState<Transaction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Transaction | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState<BulkAction>(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const period = state.settings.selectedPeriod;
 
@@ -75,6 +81,108 @@ export function Transactions() {
     for (const tx of state.transactions) names.add(tx.category);
     return [...names].sort((a, b) => a.localeCompare(b));
   }, [state.settings.categories, state.transactions]);
+
+  // A selection only ever acts on rows that are still visible under the
+  // current filters — if a filter hides a selected row, it's just left out
+  // of the count and any bulk action, not force-deselected.
+  const selectedRows = useMemo(
+    () => rows.filter((tx) => selected.has(tx.id)),
+    [rows, selected],
+  );
+  const allVisibleSelected = rows.length > 0 && selectedRows.length === rows.length;
+
+  function toggleOne(id: string) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllVisible() {
+    setSelected((current) => {
+      if (allVisibleSelected) {
+        const next = new Set(current);
+        for (const tx of rows) next.delete(tx.id);
+        return next;
+      }
+      const next = new Set(current);
+      for (const tx of rows) next.add(tx.id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  async function bulkSetCategory(nextCategory: string) {
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        selectedRows.map((tx) => updateTransaction(tx.id, { category: nextCategory })),
+      );
+      notify(
+        `${selectedRows.length} transaction${selectedRows.length === 1 ? "" : "s"} set to ${nextCategory}.`,
+      );
+      clearSelection();
+      setBulkAction(null);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "The category change did not fully save.",
+        "error",
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkAddTags(tagsToAdd: string[]) {
+    setBulkBusy(true);
+    try {
+      await Promise.all(
+        selectedRows.map((tx) => {
+          const merged = new Set(tx.tags.map((t) => t.toLowerCase()));
+          const nextTags = [...tx.tags];
+          for (const tag of tagsToAdd) {
+            if (!merged.has(tag.toLowerCase())) {
+              merged.add(tag.toLowerCase());
+              nextTags.push(tag);
+            }
+          }
+          return updateTransaction(tx.id, { tags: nextTags });
+        }),
+      );
+      notify(`Tags added to ${selectedRows.length} transaction${selectedRows.length === 1 ? "" : "s"}.`);
+      clearSelection();
+      setBulkAction(null);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "The tags did not fully save.",
+        "error",
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
+
+  async function bulkDelete() {
+    setBulkBusy(true);
+    try {
+      await Promise.all(selectedRows.map((tx) => deleteTransaction(tx.id)));
+      notify(`${selectedRows.length} transaction${selectedRows.length === 1 ? "" : "s"} deleted.`);
+      clearSelection();
+      setBulkAction(null);
+    } catch (error) {
+      notify(
+        error instanceof Error ? error.message : "The deletion did not fully complete.",
+        "error",
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  }
 
   async function confirmDelete() {
     if (!deleteTarget) return;
@@ -173,6 +281,44 @@ export function Transactions() {
         </div>
       </Card>
 
+      {selectedRows.length > 0 ? (
+        <Card className="bulk-bar">
+          <div className="row row--between">
+            <span className="cell-meta">
+              <strong>{selectedRows.length}</strong> selected
+            </span>
+            <div className="row" style={{ gap: 8 }}>
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={() => setBulkAction("category")}
+              >
+                Set category
+              </button>
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={() => setBulkAction("tag")}
+              >
+                <TagIcon size={14} aria-hidden="true" />
+                Add tag
+              </button>
+              <button
+                type="button"
+                className="btn btn--sm"
+                onClick={() => setBulkAction("delete")}
+              >
+                <Trash2 size={14} aria-hidden="true" />
+                Delete
+              </button>
+              <button type="button" className="btn btn--sm" onClick={clearSelection}>
+                Clear
+              </button>
+            </div>
+          </div>
+        </Card>
+      ) : null}
+
       {rows.length === 0 ? (
         <Card>
           <EmptyState
@@ -218,6 +364,14 @@ export function Transactions() {
               </caption>
               <thead>
                 <tr>
+                  <th scope="col" style={{ width: 32 }}>
+                    <input
+                      type="checkbox"
+                      checked={allVisibleSelected}
+                      onChange={toggleAllVisible}
+                      aria-label="Select all transactions in this view"
+                    />
+                  </th>
                   <th scope="col">Date &amp; merchant</th>
                   <th scope="col">Category</th>
                   <th scope="col">Account</th>
@@ -232,7 +386,15 @@ export function Transactions() {
               </thead>
               <tbody>
                 {rows.map((tx) => (
-                  <tr key={tx.id}>
+                  <tr key={tx.id} className={selected.has(tx.id) ? "tr--selected" : ""}>
+                    <td>
+                      <input
+                        type="checkbox"
+                        checked={selected.has(tx.id)}
+                        onChange={() => toggleOne(tx.id)}
+                        aria-label={`Select ${tx.merchant} on ${formatDate(tx.date)}`}
+                      />
+                    </td>
                     <td>
                       <div className="cell-merchant">
                         {tx.merchant}
@@ -293,13 +455,24 @@ export function Transactions() {
 
           <div className="tx-list">
             {rows.map((tx) => (
-              <article className="tx-card" key={tx.id}>
+              <article
+                className={`tx-card ${selected.has(tx.id) ? "tx-card--selected" : ""}`}
+                key={tx.id}
+              >
                 <div className="tx-card__top">
-                  <div style={{ minWidth: 0 }}>
-                    <p className="list-row__title">{tx.merchant}</p>
-                    <p className="list-row__meta">
-                      {formatDate(tx.date)} · {tx.account}
-                    </p>
+                  <div className="row" style={{ gap: 10, minWidth: 0 }}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(tx.id)}
+                      onChange={() => toggleOne(tx.id)}
+                      aria-label={`Select ${tx.merchant} on ${formatDate(tx.date)}`}
+                    />
+                    <div style={{ minWidth: 0 }}>
+                      <p className="list-row__title">{tx.merchant}</p>
+                      <p className="list-row__meta">
+                        {formatDate(tx.date)} · {tx.account}
+                      </p>
+                    </div>
                   </div>
                   <span
                     className={`amount amount--${
@@ -374,6 +547,37 @@ export function Transactions() {
           busy={deleting}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => void confirmDelete()}
+        />
+      ) : null}
+
+      {bulkAction === "category" ? (
+        <BulkCategoryModal
+          count={selectedRows.length}
+          categories={categoryOptions}
+          busy={bulkBusy}
+          onClose={() => setBulkAction(null)}
+          onChoose={(next) => void bulkSetCategory(next)}
+        />
+      ) : null}
+
+      {bulkAction === "tag" ? (
+        <BulkTagModal
+          count={selectedRows.length}
+          allTags={state.tags}
+          busy={bulkBusy}
+          onClose={() => setBulkAction(null)}
+          onSave={(tags) => void bulkAddTags(tags)}
+        />
+      ) : null}
+
+      {bulkAction === "delete" ? (
+        <ConfirmDialog
+          title={`Delete ${selectedRows.length} transaction${selectedRows.length === 1 ? "" : "s"}?`}
+          body="This cannot be undone."
+          confirmLabel="Delete"
+          busy={bulkBusy}
+          onCancel={() => setBulkAction(null)}
+          onConfirm={() => void bulkDelete()}
         />
       ) : null}
     </div>
@@ -536,6 +740,9 @@ function TagOnlyModal({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isDirty = JSON.stringify(tags) !== JSON.stringify(transaction.tags);
+  const { requestClose, discardPrompt } = useConfirmClose(isDirty, onClose);
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -550,13 +757,14 @@ function TagOnlyModal({
   }
 
   return (
+    <>
     <Modal
       title="Edit tags"
       subtitle={`${transaction.merchant} · ${formatDate(transaction.date)}`}
-      onClose={onClose}
+      onClose={requestClose}
       footer={
         <>
-          <button type="button" className="btn" onClick={onClose} disabled={saving}>
+          <button type="button" className="btn" onClick={requestClose} disabled={saving}>
             Cancel
           </button>
           <button
@@ -576,6 +784,95 @@ function TagOnlyModal({
         selected={tags}
         onChange={setTags}
         idPrefix={`tags-${transaction.id}`}
+      />
+    </Modal>
+    {discardPrompt}
+    </>
+  );
+}
+
+/* ============================================================= bulk actions */
+
+function BulkCategoryModal({
+  count,
+  categories,
+  busy,
+  onClose,
+  onChoose,
+}: {
+  count: number;
+  categories: string[];
+  busy: boolean;
+  onClose: () => void;
+  onChoose: (category: string) => void;
+}) {
+  return (
+    <Modal
+      title={`Set category for ${count} transaction${count === 1 ? "" : "s"}`}
+      onClose={onClose}
+    >
+      <ul className="picker" role="listbox" aria-label="Choose a category">
+        {categories.map((name) => (
+          <li key={name}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={false}
+              className="picker__item"
+              disabled={busy}
+              onClick={() => onChoose(name)}
+            >
+              <span style={{ flex: 1 }}>{name}</span>
+              {busy ? <span className="spinner" /> : null}
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Modal>
+  );
+}
+
+function BulkTagModal({
+  count,
+  allTags,
+  busy,
+  onClose,
+  onSave,
+}: {
+  count: number;
+  allTags: Tag[];
+  busy: boolean;
+  onClose: () => void;
+  onSave: (tags: string[]) => void;
+}) {
+  const [tags, setTags] = useState<string[]>([]);
+
+  return (
+    <Modal
+      title={`Add tags to ${count} transaction${count === 1 ? "" : "s"}`}
+      subtitle="These are added alongside whatever tags each transaction already has."
+      onClose={onClose}
+      footer={
+        <>
+          <button type="button" className="btn" onClick={onClose} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn--primary"
+            disabled={busy || tags.length === 0}
+            onClick={() => onSave(tags)}
+          >
+            {busy ? <Spinner label="Saving" /> : "Add tags"}
+          </button>
+        </>
+      }
+    >
+      <TagPicker
+        allTags={allTags}
+        selected={tags}
+        onChange={setTags}
+        idPrefix="bulk-tags"
       />
     </Modal>
   );

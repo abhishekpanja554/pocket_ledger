@@ -24,6 +24,7 @@ import {
   relativeDueLabel,
   savingsRate,
   signedMoney,
+  todayISO,
 } from "../lib/format";
 import { filterByPeriod, inRange, periodLabel, priorRangeFor } from "../lib/period";
 import { detectPatterns, visibleSuggestions } from "../lib/recurring";
@@ -97,7 +98,10 @@ export function Dashboard() {
     // "Coming up" lists confirmed commitments so nothing here is speculative.
     void detected;
     return confirmed
-      .filter((item) => item.date >= new Date().toISOString().slice(0, 10))
+      // Local calendar date, not UTC — see period.ts's normalizeToLocalCalendarDate
+      // for why: a UTC-derived "today" runs a day behind IST for ~5.5 hours
+      // daily, which would wrongly drop something due today from this list.
+      .filter((item) => item.date >= todayISO())
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 4);
   }, [transactions, settings]);
@@ -405,18 +409,34 @@ function buildCashFlow(transactions: Transaction[]): CashFlowPoint[] {
     });
 }
 
+/**
+ * At most 8 slices are ever drawn, but `total` always reflects every expense
+ * category — categories past the top 7 are folded into a single "Other"
+ * slice rather than silently dropped, so the donut's percentages and center
+ * total never understate real spending.
+ */
 function buildCategorySlices(transactions: Transaction[]) {
+  const MAX_NAMED_SLICES = 7;
   const byCategory = new Map<string, number>();
   for (const tx of transactions) {
     if (tx.type !== "expense") continue;
     byCategory.set(tx.category, (byCategory.get(tx.category) ?? 0) + tx.amount);
   }
-  const slices = [...byCategory.entries()]
+  const all = [...byCategory.entries()]
     .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 8);
-  const total = slices.reduce((acc, slice) => acc + slice.value, 0);
-  return { slices, total };
+    .sort((a, b) => b.value - a.value);
+
+  const total = all.reduce((acc, slice) => acc + slice.value, 0);
+
+  if (all.length <= MAX_NAMED_SLICES + 1) {
+    return { slices: all, total };
+  }
+
+  const top = all.slice(0, MAX_NAMED_SLICES);
+  const other = all
+    .slice(MAX_NAMED_SLICES)
+    .reduce((acc, slice) => acc + slice.value, 0);
+  return { slices: [...top, { name: "Other", value: other }], total };
 }
 
 /**
