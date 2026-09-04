@@ -208,7 +208,7 @@ function CsvImport({ onClose }: { onClose: () => void }) {
       let filesStored = 0;
       if (storeOriginal && file) {
         const upload = await uploadDocuments([file], "stored");
-        filesStored = upload.stored.length;
+        filesStored = upload.documents.length;
         if (upload.errors.length) result.errors.push(...upload.errors);
       }
 
@@ -494,11 +494,11 @@ function DocumentImport({ onClose }: { onClose: () => void }) {
     setErrors([]);
     try {
       const result = await uploadDocuments(files);
-      setDone(result.stored.length);
+      setDone(result.documents.length);
       setErrors(result.errors);
-      if (result.stored.length) {
+      if (result.documents.length) {
         notify(
-          `${result.stored.length} file${result.stored.length === 1 ? "" : "s"} stored.`,
+          `${result.documents.length} file${result.documents.length === 1 ? "" : "s"} stored.`,
         );
       }
       setFiles([]);

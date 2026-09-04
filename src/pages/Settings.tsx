@@ -1,5 +1,4 @@
 import {
-  AlertTriangle,
   ExternalLink,
   FolderSync,
   Landmark,
@@ -15,7 +14,6 @@ import {
   CardHead,
   ConfirmDialog,
   Field,
-  Modal,
   Notice,
   Spinner,
 } from "../components/ui";
@@ -24,7 +22,7 @@ import { useAppState, usePocketLedger } from "../store";
 
 export function Settings() {
   const state = useAppState();
-  const { savePreferences, wipeEverything, notify, logout } = usePocketLedger();
+  const { savePreferences, notify, logout } = usePocketLedger();
   const { openModal } = useUi();
   const { settings } = state;
 
@@ -39,7 +37,6 @@ export function Settings() {
   const [netWorthError, setNetWorthError] = useState<string | null>(null);
   const [savingNetWorth, setSavingNetWorth] = useState(false);
   const [restoring, setRestoring] = useState(false);
-  const [wipeOpen, setWipeOpen] = useState(false);
 
   const previewAssets = Number(assets) || 0;
   const previewLiabilities = Number(liabilities) || 0;
@@ -325,41 +322,13 @@ export function Settings() {
       <Card>
         <CardHead
           title="Session"
-          hint="Your passphrase is checked on the server; the browser only holds a signed session cookie."
+          hint="Signed in with your Pocket Ledger account; the browser only holds a signed session cookie."
         />
         <button type="button" className="btn" onClick={() => void logout()}>
           <LogOut size={16} aria-hidden="true" />
           Sign out
         </button>
       </Card>
-
-      {/* ------------------------------------------------------ danger zone */}
-      <Card className="danger-zone">
-        <CardHead
-          title="Danger zone"
-          hint="Erase every Pocket Ledger record and stored file. Your Google Drive originals are not touched."
-        />
-        <button
-          type="button"
-          className="btn btn--danger"
-          onClick={() => setWipeOpen(true)}
-        >
-          <Trash2 size={16} aria-hidden="true" />
-          Erase all Pocket Ledger data
-        </button>
-      </Card>
-
-      {wipeOpen ? (
-        <WipeModal
-          onClose={() => setWipeOpen(false)}
-          onConfirm={async () => {
-            await wipeEverything();
-            setAssets("");
-            setLiabilities("");
-            notify("All Pocket Ledger data was erased.");
-          }}
-        />
-      ) : null}
     </div>
   );
 }
@@ -489,87 +458,5 @@ function ManagedList({
         />
       ) : null}
     </Card>
-  );
-}
-
-/* -------------------------------------------------------------- data wipe */
-
-function WipeModal({
-  onClose,
-  onConfirm,
-}: {
-  onClose: () => void;
-  onConfirm: () => Promise<void>;
-}) {
-  const [text, setText] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const inputId = useId();
-  const matches = text === "DELETE";
-
-  async function run() {
-    if (!matches) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await onConfirm();
-      onClose();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "The data could not be erased.",
-      );
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      title="Erase all Pocket Ledger data"
-      onClose={onClose}
-      footer={
-        <>
-          <button type="button" className="btn" onClick={onClose} disabled={busy}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="btn btn--danger"
-            onClick={() => void run()}
-            disabled={!matches || busy}
-          >
-            {busy ? <Spinner label="Erasing" /> : "Erase everything"}
-          </button>
-        </>
-      }
-    >
-      {error ? <Notice kind="error">{error}</Notice> : null}
-
-      <Notice kind="warn">
-        <AlertTriangle size={18} aria-hidden="true" />
-        <span>
-          Every transaction, document record, rule, tag and setting in this
-          Site's database will be deleted, along with every file copy stored in
-          its bucket. This cannot be undone.
-        </span>
-      </Notice>
-
-      <p>
-        Your original files in Google Drive are <strong>not</strong> deleted.
-        After erasing, the daily 8:00 AM automation stays configured but will
-        skip every Drive file modified at or before this moment, so old items do
-        not repopulate the Site.
-      </p>
-
-      <Field label="Type DELETE to confirm" htmlFor={inputId}>
-        <input
-          id={inputId}
-          className="input"
-          value={text}
-          autoComplete="off"
-          spellCheck={false}
-          onChange={(event) => setText(event.target.value)}
-        />
-      </Field>
-    </Modal>
   );
 }

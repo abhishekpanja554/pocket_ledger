@@ -35,9 +35,9 @@ export function Documents() {
     try {
       const result = await uploadDocuments([...files]);
       setErrors(result.errors);
-      if (result.stored.length) {
+      if (result.documents.length) {
         notify(
-          `${result.stored.length} file${result.stored.length === 1 ? "" : "s"} stored.`,
+          `${result.documents.length} file${result.documents.length === 1 ? "" : "s"} stored.`,
         );
       }
     } catch (error) {
@@ -109,9 +109,8 @@ export function Documents() {
           ))}
 
           <p className="card__hint" style={{ marginTop: 10 }}>
-            Original files are stored in your Pocket Ledger R2 bucket and their details
-            in D1. Pocket Ledger does not add any encryption beyond the storage
-            platform's own protections.
+            Original files are stored on your Pocket Ledger server. Pocket Ledger does
+            not add any encryption beyond the storage platform's own protections.
           </p>
         </Card>
 

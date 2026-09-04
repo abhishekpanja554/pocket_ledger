@@ -16,7 +16,13 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { LoginScreen } from "./components/LoginScreen";
+import {
+  ForgotPasswordScreen,
+  LoginScreen,
+  RegisterScreen,
+  ResetPasswordScreen,
+  VerifyEmailScreen,
+} from "./components/AuthScreens";
 import { Notice, Spinner } from "./components/ui";
 import { AddEntryModal } from "./modals/AddEntryModal";
 import { DriveSyncModal } from "./modals/DriveSyncModal";
@@ -34,6 +40,22 @@ import { Transactions } from "./pages/Transactions";
 import { usePocketLedger } from "./store";
 
 type GlobalModal = "add-entry" | "import" | "drive" | null;
+type AuthView = "login" | "register" | "forgot-password";
+
+/**
+ * The backend's verification/reset-password emails link to real paths
+ * (/verify-email, /reset-password), not the app's normal hash-based routes
+ * — read once at load, since these are one-shot flows a token in the URL
+ * drives, not something the in-app nav ever produces.
+ */
+function readTokenScreen(): { screen: "verify-email" | "reset-password"; token: string } | null {
+  const { pathname, search } = window.location;
+  const token = new URLSearchParams(search).get("token");
+  if (!token) return null;
+  if (pathname === "/verify-email") return { screen: "verify-email", token };
+  if (pathname === "/reset-password") return { screen: "reset-password", token };
+  return null;
+}
 
 interface UiContextValue {
   route: RouteId;
@@ -54,17 +76,27 @@ export default function App() {
     state,
     status,
     loadError,
+    user,
     reload,
     toasts,
+    notify,
     dismissToast,
     login,
+    register,
     logout,
-    authMisconfigured,
+    resendVerification,
+    forgotPassword,
+    resetPassword,
+    verifyEmail,
   } = usePocketLedger();
   const [route, setRoute] = useState<RouteId>(() =>
     routeFromHash(window.location.hash),
   );
   const [modal, setModal] = useState<GlobalModal>(null);
+  const [authView, setAuthView] = useState<AuthView>("login");
+  const [loginPrefill, setLoginPrefill] = useState<string | undefined>(undefined);
+  const [tokenScreen] = useState(readTokenScreen);
+  const [resendBusy, setResendBusy] = useState(false);
 
   useEffect(() => {
     function onHashChange() {
@@ -94,10 +126,63 @@ export default function App() {
   const needsReview =
     state?.transactions.filter((tx) => tx.category === "Needs review").length ?? 0;
 
-  // Nothing but the sign-in screen renders until the server accepts a session.
-  if (status === "locked") {
+  // Token-driven, one-shot screens from an email link take priority over
+  // everything else — reachable whether or not there's already a session.
+  if (tokenScreen?.screen === "verify-email") {
     return (
-      <LoginScreen onSubmit={login} misconfigured={authMisconfigured} />
+      <VerifyEmailScreen
+        token={tokenScreen.token}
+        onVerify={verifyEmail}
+        onGoToLogin={() => {
+          window.history.replaceState(null, "", "/");
+          window.location.reload();
+        }}
+      />
+    );
+  }
+  if (tokenScreen?.screen === "reset-password") {
+    return (
+      <ResetPasswordScreen
+        token={tokenScreen.token}
+        onSubmit={resetPassword}
+        onGoToLogin={() => {
+          window.history.replaceState(null, "", "/");
+          window.location.reload();
+        }}
+      />
+    );
+  }
+
+  // Nothing but the sign-in/register/forgot-password screens render until
+  // the server accepts a session — real per-user accounts now, not one
+  // shared owner passphrase.
+  if (status === "locked") {
+    if (authView === "register") {
+      return (
+        <RegisterScreen
+          onSubmit={register}
+          onGoToLogin={(justRegisteredEmail) => {
+            setLoginPrefill(justRegisteredEmail);
+            setAuthView("login");
+          }}
+        />
+      );
+    }
+    if (authView === "forgot-password") {
+      return (
+        <ForgotPasswordScreen
+          onSubmit={forgotPassword}
+          onGoToLogin={() => setAuthView("login")}
+        />
+      );
+    }
+    return (
+      <LoginScreen
+        onSubmit={login}
+        onGoToRegister={() => setAuthView("register")}
+        onGoToForgotPassword={() => setAuthView("forgot-password")}
+        prefillEmail={loginPrefill}
+      />
     );
   }
 
@@ -144,8 +229,8 @@ export default function App() {
 
           <div className="sidebar__footer">
             <p style={{ marginBottom: 8 }}>
-              Data is stored on your Pocket Ledger server in D1 and R2 — not in this
-              browser.
+              Signed in as {user?.email}. Data is stored on your Pocket Ledger server —
+              not in this browser.
             </p>
             <button
               type="button"
@@ -186,6 +271,29 @@ export default function App() {
           </header>
 
           <main className="page" id="main-content">
+            {user && !user.emailVerified ? (
+              <Notice kind="warn">
+                <span>Please verify {user.email} to keep using Pocket Ledger.</span>{" "}
+                <button
+                  type="button"
+                  className="link-btn"
+                  disabled={resendBusy}
+                  onClick={async () => {
+                    setResendBusy(true);
+                    try {
+                      await resendVerification(user.email);
+                      notify("Verification email sent.");
+                    } catch {
+                      notify("Could not send a verification email right now.", "error");
+                    } finally {
+                      setResendBusy(false);
+                    }
+                  }}
+                >
+                  {resendBusy ? "Sending…" : "Resend email"}
+                </button>
+              </Notice>
+            ) : null}
             {status === "loading" ? (
               <div className="loading-page">
                 <Spinner label="Loading your Pocket Ledger data…" />

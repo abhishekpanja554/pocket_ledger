@@ -19,7 +19,7 @@ import type {
   TransactionInput,
   TransactionWriteResult,
 } from "../shared/types";
-import { ApiError, api, type TransactionPatch } from "./lib/api";
+import { ApiError, api, type AuthUser, type TransactionPatch } from "./lib/api";
 
 export type LoadStatus = "loading" | "ready" | "error" | "locked";
 
@@ -33,10 +33,15 @@ interface PocketLedgerContextValue {
   state: AppState | null;
   status: LoadStatus;
   loadError: string | null;
-  /** True when the deployment has no owner passphrase configured. */
-  authMisconfigured: boolean;
-  login: (password: string) => Promise<void>;
+  /** Who's signed in — null whenever status is "locked". */
+  user: AuthUser | null;
+  register: (email: string, password: string) => Promise<AuthUser>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  resendVerification: (email: string) => Promise<void>;
+  forgotPassword: (email: string) => Promise<void>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
   toasts: Toast[];
   notify: (message: string, kind?: Toast["kind"]) => void;
   dismissToast: (id: number) => void;
@@ -59,9 +64,9 @@ interface PocketLedgerContextValue {
   uploadDocuments: (
     files: File[],
     status?: DocumentRow["status"],
-  ) => Promise<{ stored: DocumentRow[]; errors: string[] }>;
+  ) => Promise<{ documents: DocumentRow[]; errors: string[] }>;
   deleteDocument: (id: string) => Promise<void>;
-  wipeEverything: () => Promise<void>;
+  runDriveSync: () => Promise<void>;
 }
 
 const PocketLedgerContext = createContext<PocketLedgerContextValue | null>(null);
@@ -75,7 +80,7 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<AppState | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [authMisconfigured, setAuthMisconfigured] = useState(false);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
 
@@ -96,20 +101,17 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
 
   const reload = useCallback(async () => {
     try {
+      const me = await api.me();
+      setUser(me);
       const next = await api.getState();
       setState(next);
       setStatus("ready");
       setLoadError(null);
     } catch (error) {
-      // A 401 anywhere means the session lapsed — show the sign-in screen
-      // rather than a generic failure, and drop the cached data.
+      // A 401 anywhere (checking who's signed in, or loading state once the
+      // session has lapsed) means: show the sign-in screen, drop cached data.
       if (error instanceof ApiError && error.status === 401) {
-        setState(null);
-        setStatus("locked");
-        return;
-      }
-      if (error instanceof ApiError && error.status === 503) {
-        setAuthMisconfigured(true);
+        setUser(null);
         setState(null);
         setStatus("locked");
         return;
@@ -121,9 +123,13 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const register = useCallback(async (email: string, password: string) => {
+    return api.register(email, password);
+  }, []);
+
   const login = useCallback(
-    async (password: string) => {
-      await api.login(password);
+    async (email: string, password: string) => {
+      await api.login(email, password);
       setStatus("loading");
       await reload();
     },
@@ -132,8 +138,25 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await api.logout();
+    setUser(null);
     setState(null);
     setStatus("locked");
+  }, []);
+
+  const resendVerification = useCallback(async (email: string) => {
+    await api.resendVerification(email);
+  }, []);
+
+  const forgotPassword = useCallback(async (email: string) => {
+    await api.forgotPassword(email);
+  }, []);
+
+  const resetPassword = useCallback(async (token: string, newPassword: string) => {
+    await api.resetPassword(token, newPassword);
+  }, []);
+
+  const verifyEmail = useCallback(async (token: string) => {
+    await api.verifyEmail(token);
   }, []);
 
   useEffect(() => {
@@ -193,10 +216,10 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
       setState((current) => {
         if (!current) return current;
         const transactions = current.transactions.map((tx: Transaction) =>
-          tx.id === id ? saved.transaction : tx,
+          tx.id === id ? saved : tx,
         );
         const knownTags = new Set(current.tags.map((t) => t.name.toLowerCase()));
-        const newTags: Tag[] = saved.transaction.tags
+        const newTags: Tag[] = saved.tags
           .filter((name) => !knownTags.has(name.toLowerCase()))
           .map((name) => ({ name, createdAt: new Date().toISOString() }));
         return {
@@ -244,10 +267,10 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
   const uploadDocuments = useCallback(
     async (files: File[], docStatus?: DocumentRow["status"]) => {
       const result = await api.uploadDocuments(files, docStatus);
-      if (result.stored.length) {
+      if (result.documents.length) {
         setState((current) =>
           current
-            ? { ...current, documents: [...result.stored, ...current.documents] }
+            ? { ...current, documents: [...result.documents, ...current.documents] }
             : current,
         );
       }
@@ -265,8 +288,11 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const wipeEverything = useCallback(async () => {
-    await api.wipeEverything();
+  const runDriveSync = useCallback(async () => {
+    await api.runDriveSync();
+    // A sync run can add transactions and documents, not just update the
+    // sync-status fields — a full reload keeps everything consistent
+    // rather than trying to patch three different slices of state by hand.
     await reload();
   }, [reload]);
 
@@ -275,9 +301,14 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
       state,
       status,
       loadError,
-      authMisconfigured,
+      user,
+      register,
       login,
       logout,
+      resendVerification,
+      forgotPassword,
+      resetPassword,
+      verifyEmail,
       toasts,
       notify,
       dismissToast,
@@ -289,15 +320,20 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
       savePreferences,
       uploadDocuments,
       deleteDocument,
-      wipeEverything,
+      runDriveSync,
     }),
     [
       state,
       status,
       loadError,
-      authMisconfigured,
+      user,
+      register,
       login,
       logout,
+      resendVerification,
+      forgotPassword,
+      resetPassword,
+      verifyEmail,
       toasts,
       notify,
       dismissToast,
@@ -309,7 +345,7 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
       savePreferences,
       uploadDocuments,
       deleteDocument,
-      wipeEverything,
+      runDriveSync,
     ],
   );
 

@@ -1,10 +1,11 @@
-import { ExternalLink, FolderSync, Info } from "lucide-react";
+import { ExternalLink, FolderSync, Info, RefreshCw } from "lucide-react";
 import { useId, useState } from "react";
 import { Field, Modal, Notice, Spinner } from "../components/ui";
+import { ApiError } from "../lib/api";
 import { formatTimestamp } from "../lib/format";
 import { usePocketLedger } from "../store";
 
-const FOLDER_NAME = "Ledgerly Financial Inbox";
+const FOLDER_NAME = "Pocket Ledger Financial Inbox";
 
 /**
  * The Site never browses Google Drive from the browser. This dialog records the
@@ -12,13 +13,30 @@ const FOLDER_NAME = "Ledgerly Financial Inbox";
  * last reported to /api/drive-sync.
  */
 export function DriveSyncModal({ onClose }: { onClose: () => void }) {
-  const { state, savePreferences, notify } = usePocketLedger();
+  const { state, savePreferences, runDriveSync, notify } = usePocketLedger();
   const ids = { name: useId(), folderId: useId(), url: useId(), tz: useId() };
 
   const settings = state?.settings;
   const folder = settings?.driveFolder ?? null;
   const sync = settings?.driveSync;
   const schedule = settings?.driveSchedule;
+
+  const [syncing, setSyncing] = useState(false);
+
+  async function syncNow() {
+    setSyncing(true);
+    try {
+      await runDriveSync();
+      notify("Drive sync finished.");
+    } catch (err) {
+      notify(
+        err instanceof ApiError ? err.message : "Drive sync could not run right now.",
+        "error",
+      );
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const [name, setName] = useState(folder?.name ?? FOLDER_NAME);
   const [folderId, setFolderId] = useState(folder?.id ?? "");
@@ -119,6 +137,23 @@ export function DriveSyncModal({ onClose }: { onClose: () => void }) {
         </div>
       </div>
 
+      <button
+        type="button"
+        className="btn"
+        onClick={() => void syncNow()}
+        disabled={syncing || !folder}
+        title={folder ? undefined : "Set a Drive folder below first"}
+      >
+        {syncing ? (
+          <Spinner label="Syncing" />
+        ) : (
+          <>
+            <RefreshCw size={16} aria-hidden="true" />
+            Sync now
+          </>
+        )}
+      </button>
+
       {sync?.errors?.length ? (
         <div className="stack" style={{ gap: 6 }}>
           <p className="field__label">Reported problems</p>
@@ -132,7 +167,7 @@ export function DriveSyncModal({ onClose }: { onClose: () => void }) {
 
       <Field
         label="Folder name"
-        hint="Use one dedicated folder. The expected name is “Ledgerly Financial Inbox”."
+        hint="Use one dedicated folder. The expected name is “Pocket Ledger Financial Inbox”."
         htmlFor={ids.name}
       >
         <input
