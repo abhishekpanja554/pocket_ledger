@@ -6,12 +6,41 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover"
     />
-    <meta name="color-scheme" content="light" />
-    <meta name="theme-color" content="#1E2340" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="theme-color"
+      content="#1E2340"
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content="#14151d"
+      media="(prefers-color-scheme: dark)"
+    />
     <meta
       name="description"
       content="Pocket Ledger — a private personal finance dashboard."
     />
+
+    <!--
+      Applies a saved theme choice before first paint, so switching pages or
+      reloading never flashes the wrong theme. "system" (the default) stores
+      no attribute at all and leaves it to the prefers-color-scheme media
+      query in styles.css. Kept inline and tiny on purpose — this has to run
+      before the stylesheet does.
+    -->
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem("pocket-ledger-theme");
+          if (stored === "light" || stored === "dark") {
+            document.documentElement.setAttribute("data-theme", stored);
+          }
+        } catch (e) {
+          // localStorage unavailable (private mode, etc.) — system theme applies.
+        }
+      })();
+    </script>
 
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />

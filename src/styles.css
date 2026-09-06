@@ -15,6 +15,14 @@
   --red: #c2413c;
   --red-soft: #fbeae9;
 
+  /* Higher-contrast text for notice/banner boxes, paired with the *-soft
+     backgrounds above — darker than --red/--green/--blue/--orange in light
+     mode, lighter than them in dark mode. */
+  --red-soft-text: #8f2d29;
+  --green-soft-text: #10603f;
+  --blue-soft-text: #1d4f80;
+  --orange-soft-text: #96500f;
+
   --navy: #1e2340;
   --navy-soft: #2a3054;
 
@@ -27,6 +35,9 @@
   --text: #1c1f2b;
   --text-secondary: #565b6e;
   --text-muted: #7a8095;
+
+  --surface-glass: rgba(255, 255, 255, 0.95);
+  --skeleton-highlight: #eef0f4;
 
   --radius-lg: 16px;
   --radius: 14px;
@@ -42,6 +53,92 @@
 
   --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, sans-serif;
+}
+
+/*
+ * Dark palette. Defined twice on purpose: the media-query block covers
+ * "system" (the default, no data-theme attribute at all), and the
+ * :root[data-theme="dark"] block covers an explicit manual choice regardless
+ * of OS preference. --navy/--navy-soft are intentionally untouched — they're
+ * used as fixed always-dark surfaces (toasts, the net-worth highlight card)
+ * that already read correctly against either page background.
+ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --violet: #8f83f2;
+    --violet-strong: #ab9fff;
+    --violet-soft: #2a2650;
+    --violet-ring: rgba(143, 131, 242, 0.32);
+
+    --green: #34c98a;
+    --green-soft: #123526;
+    --orange: #e8933f;
+    --orange-soft: #3a2716;
+    --blue: #5b9bd9;
+    --blue-soft: #1b2f42;
+    --red: #e2665f;
+    --red-soft: #3a1f1e;
+
+    --red-soft-text: #f3a9a4;
+    --green-soft-text: #7fe0b3;
+    --blue-soft-text: #9cc8ee;
+    --orange-soft-text: #f0b573;
+
+    --bg: #14151d;
+    --surface: #1c1d28;
+    --surface-muted: #23242f;
+    --border: #2e2f3d;
+    --border-strong: #3c3d4e;
+
+    --text: #eceef5;
+    --text-secondary: #a8acc0;
+    --text-muted: #7d81a0;
+
+    --surface-glass: rgba(20, 21, 29, 0.86);
+    --skeleton-highlight: #2c2d3a;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme="dark"] {
+  --violet: #8f83f2;
+  --violet-strong: #ab9fff;
+  --violet-soft: #2a2650;
+  --violet-ring: rgba(143, 131, 242, 0.32);
+
+  --green: #34c98a;
+  --green-soft: #123526;
+  --orange: #e8933f;
+  --orange-soft: #3a2716;
+  --blue: #5b9bd9;
+  --blue-soft: #1b2f42;
+  --red: #e2665f;
+  --red-soft: #3a1f1e;
+
+  --red-soft-text: #f3a9a4;
+  --green-soft-text: #7fe0b3;
+  --blue-soft-text: #9cc8ee;
+  --orange-soft-text: #f0b573;
+
+  --bg: #14151d;
+  --surface: #1c1d28;
+  --surface-muted: #23242f;
+  --border: #2e2f3d;
+  --border-strong: #3c3d4e;
+
+  --text: #eceef5;
+  --text-secondary: #a8acc0;
+  --text-muted: #7d81a0;
+
+  --surface-glass: rgba(20, 21, 29, 0.86);
+  --skeleton-highlight: #2c2d3a;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 18px 44px rgba(0, 0, 0, 0.55);
 }
 
 /* ================================================================== resets */
@@ -253,7 +350,7 @@ a {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--surface-glass);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -443,6 +540,42 @@ a {
 
 .btn--block {
   width: 100%;
+}
+
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  width: fit-content;
+}
+
+.segmented__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  font-weight: 500;
+  min-height: 36px;
+  transition: background 0.14s ease, color 0.14s ease;
+}
+
+.segmented__item:hover {
+  color: var(--text);
+}
+
+.segmented__item--active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  font-weight: 600;
 }
 
 .link-btn {
@@ -1147,25 +1280,25 @@ a {
 
 .notice--error {
   background: var(--red-soft);
-  color: #8f2d29;
+  color: var(--red-soft-text);
   border-color: rgba(194, 65, 60, 0.24);
 }
 
 .notice--success {
   background: var(--green-soft);
-  color: #10603f;
+  color: var(--green-soft-text);
   border-color: rgba(23, 145, 93, 0.24);
 }
 
 .notice--info {
   background: var(--blue-soft);
-  color: #1d4f80;
+  color: var(--blue-soft-text);
   border-color: rgba(43, 108, 176, 0.2);
 }
 
 .notice--warn {
   background: var(--orange-soft);
-  color: #96500f;
+  color: var(--orange-soft-text);
   border-color: rgba(217, 115, 22, 0.24);
 }
 
@@ -1235,7 +1368,7 @@ a {
   background: linear-gradient(
     90deg,
     var(--surface-muted) 25%,
-    #eef0f4 37%,
+    var(--skeleton-highlight) 37%,
     var(--surface-muted) 63%
   );
   background-size: 400% 100%;
@@ -1447,7 +1580,7 @@ a {
   padding: 13px 15px;
   border-radius: var(--radius);
   background: var(--green-soft);
-  color: #10603f;
+  color: var(--green-soft-text);
   font-size: 14px;
   border: 1px solid rgba(23, 145, 93, 0.2);
 }
@@ -1616,7 +1749,7 @@ a {
     position: sticky;
     top: 0;
     z-index: 20;
-    background: rgba(255, 255, 255, 0.96);
+    background: var(--surface-glass);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border);
     min-height: 62px;
@@ -1639,7 +1772,7 @@ a {
     left: 0;
     right: 0;
     z-index: 40;
-    background: rgba(255, 255, 255, 0.97);
+    background: var(--surface-glass);
     backdrop-filter: blur(10px);
     border-top: 1px solid var(--border);
     padding-bottom: env(safe-area-inset-bottom);

@@ -3,8 +3,11 @@ import {
   FolderSync,
   Landmark,
   LogOut,
+  Monitor,
+  Moon,
   Plus,
   RotateCcw,
+  Sun,
   Trash2,
 } from "lucide-react";
 import { useId, useState } from "react";
@@ -18,6 +21,7 @@ import {
   Spinner,
 } from "../components/ui";
 import { formatTimestamp, money } from "../lib/format";
+import { type Theme, useTheme } from "../lib/theme";
 import { useAppState, usePocketLedger } from "../store";
 
 export function Settings() {
@@ -37,6 +41,7 @@ export function Settings() {
   const [netWorthError, setNetWorthError] = useState<string | null>(null);
   const [savingNetWorth, setSavingNetWorth] = useState(false);
   const [restoring, setRestoring] = useState(false);
+  const [theme, setThemeChoice] = useTheme();
 
   const previewAssets = Number(assets) || 0;
   const previewLiabilities = Number(liabilities) || 0;
@@ -318,6 +323,15 @@ export function Settings() {
         </p>
       </Card>
 
+      {/* ------------------------------------------------------- appearance */}
+      <Card>
+        <CardHead
+          title="Appearance"
+          hint="System follows your device's light/dark setting automatically."
+        />
+        <ThemePicker value={theme} onChange={setThemeChoice} />
+      </Card>
+
       {/* ---------------------------------------------------------- session */}
       <Card>
         <CardHead
@@ -329,6 +343,40 @@ export function Settings() {
           Sign out
         </button>
       </Card>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ theme picker */
+
+const THEME_OPTIONS: { value: Theme; label: string; icon: typeof Sun }[] = [
+  { value: "light", label: "Light", icon: Sun },
+  { value: "system", label: "System", icon: Monitor },
+  { value: "dark", label: "Dark", icon: Moon },
+];
+
+function ThemePicker({
+  value,
+  onChange,
+}: {
+  value: Theme;
+  onChange: (theme: Theme) => void;
+}) {
+  return (
+    <div className="segmented" role="radiogroup" aria-label="Theme">
+      {THEME_OPTIONS.map(({ value: option, label, icon: Icon }) => (
+        <button
+          key={option}
+          type="button"
+          role="radio"
+          aria-checked={value === option}
+          className={`segmented__item${value === option ? " segmented__item--active" : ""}`}
+          onClick={() => onChange(option)}
+        >
+          <Icon size={15} aria-hidden="true" />
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
