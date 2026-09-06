@@ -1,4 +1,4 @@
-import { ExternalLink, FolderSync, Info, RefreshCw } from "lucide-react";
+import { Copy, ExternalLink, FolderSync, Info, RefreshCw } from "lucide-react";
 import { useId, useState } from "react";
 import { Field, Modal, Notice, Spinner } from "../components/ui";
 import { ApiError } from "../lib/api";
@@ -6,6 +6,14 @@ import { formatTimestamp } from "../lib/format";
 import { usePocketLedger } from "../store";
 
 const FOLDER_NAME = "Pocket Ledger Financial Inbox";
+
+// The automation reads Drive as this one fixed service account, not as the
+// signed-in user — Drive only lets it see folders explicitly shared with it.
+// Skipping that share step is invisible: Drive's list API returns an empty
+// result for a folder the account can't see, with no error, so sync silently
+// finds "0 new files" forever until this step is done.
+const SERVICE_ACCOUNT_EMAIL =
+  "pocket-ledger-drive@pocket-ledger-506818.iam.gserviceaccount.com";
 
 /**
  * The Site never browses Google Drive from the browser. This dialog records the
@@ -48,6 +56,15 @@ export function DriveSyncModal({ onClose }: { onClose: () => void }) {
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function copyServiceAccountEmail() {
+    try {
+      await navigator.clipboard.writeText(SERVICE_ACCOUNT_EMAIL);
+      notify("Copied. Paste it into the folder's Share dialog in Drive.");
+    } catch {
+      notify("Could not copy automatically — select and copy the address above.", "error");
+    }
+  }
 
   async function save() {
     setError(null);
@@ -107,10 +124,35 @@ export function DriveSyncModal({ onClose }: { onClose: () => void }) {
         <Info size={18} aria-hidden="true" />
         <span>
           Pocket Ledger never reads Drive from your browser. A scheduled automation
-          signs in to Drive on your behalf, reads only this folder, and posts new
-          items to the Site's protected <code>/api/drive-sync</code> endpoint.
+          reads only this one folder using its own dedicated Drive account — not
+          your Google login — so the folder has to be shared with that account
+          before anything below will find files in it.
         </span>
       </Notice>
+
+      <div className="card card--pad stack" style={{ gap: 8 }}>
+        <p className="field__label">Step 1 — share the folder</p>
+        <p className="field__hint">
+          In Google Drive, right-click the folder → Share, then add this address
+          with Viewer access:
+        </p>
+        <div className="stat-line">
+          <code style={{ wordBreak: "break-all" }}>{SERVICE_ACCOUNT_EMAIL}</code>
+          <button
+            type="button"
+            className="btn btn--icon"
+            onClick={() => void copyServiceAccountEmail()}
+            title="Copy address"
+          >
+            <Copy size={16} aria-hidden="true" />
+          </button>
+        </div>
+        <p className="field__hint">
+          Skipping this step isn't obvious when it goes wrong: Drive just reports
+          an empty folder to the automation, so sync keeps finding “0 new files”
+          with no error at all.
+        </p>
+      </div>
 
       <div className="card card--pad">
         <div className="stat-line">
@@ -164,6 +206,8 @@ export function DriveSyncModal({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       ) : null}
+
+      <p className="field__label">Step 2 — tell Pocket Ledger which folder</p>
 
       <Field
         label="Folder name"
