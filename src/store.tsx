@@ -19,7 +19,13 @@ import type {
   TransactionInput,
   TransactionWriteResult,
 } from "../shared/types";
-import { ApiError, api, type AuthUser, type TransactionPatch } from "./lib/api";
+import {
+  ApiError,
+  api,
+  type AuthUser,
+  type ProfilePatch,
+  type TransactionPatch,
+} from "./lib/api";
 
 export type LoadStatus = "loading" | "ready" | "error" | "locked";
 
@@ -42,6 +48,11 @@ interface PocketLedgerContextValue {
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, newPassword: string) => Promise<void>;
   verifyEmail: (token: string) => Promise<void>;
+  updateProfile: (patch: ProfilePatch) => Promise<void>;
+  /** Changing the password invalidates every session, including this one — ends back at "locked". */
+  changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
+  /** Deletes the account and everything in it. Ends back at "locked", same as a sign-out. */
+  deleteAccount: (password: string) => Promise<void>;
   toasts: Toast[];
   notify: (message: string, kind?: Toast["kind"]) => void;
   dismissToast: (id: number) => void;
@@ -136,12 +147,19 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
     [reload],
   );
 
-  const logout = useCallback(async () => {
-    await api.logout();
+  /** Drops back to the signed-out screen without a round trip — used wherever the
+   *  server has already ended the session itself (sign-out, password change,
+   *  account deletion), so there's nothing left to log out of. */
+  const clearSession = useCallback(() => {
     setUser(null);
     setState(null);
     setStatus("locked");
   }, []);
+
+  const logout = useCallback(async () => {
+    await api.logout();
+    clearSession();
+  }, [clearSession]);
 
   const resendVerification = useCallback(async (email: string) => {
     await api.resendVerification(email);
@@ -158,6 +176,31 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
   const verifyEmail = useCallback(async (token: string) => {
     await api.verifyEmail(token);
   }, []);
+
+  const updateProfile = useCallback(async (patch: ProfilePatch) => {
+    const updated = await api.updateProfile(patch);
+    setUser(updated);
+  }, []);
+
+  const changePassword = useCallback(
+    async (oldPassword: string, newPassword: string) => {
+      await api.changePassword(oldPassword, newPassword);
+      // The backend invalidates every session for this account the moment the
+      // password changes, including the one making this call — nothing left
+      // to reload, so drop straight to "locked" instead of a round trip that
+      // would just rediscover the same 401.
+      clearSession();
+    },
+    [clearSession],
+  );
+
+  const deleteAccount = useCallback(
+    async (password: string) => {
+      await api.deleteAccount(password);
+      clearSession();
+    },
+    [clearSession],
+  );
 
   useEffect(() => {
     void reload();
@@ -326,6 +369,9 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
       forgotPassword,
       resetPassword,
       verifyEmail,
+      updateProfile,
+      changePassword,
+      deleteAccount,
       toasts,
       notify,
       dismissToast,
@@ -351,6 +397,9 @@ export function PocketLedgerProvider({ children }: { children: ReactNode }) {
       forgotPassword,
       resetPassword,
       verifyEmail,
+      updateProfile,
+      changePassword,
+      deleteAccount,
       toasts,
       notify,
       dismissToast,

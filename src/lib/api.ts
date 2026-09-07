@@ -113,6 +113,16 @@ export interface AuthUser {
   id: string;
   email: string;
   emailVerified: boolean;
+  fullName: string | null;
+  locale: string;
+  currency: string;
+}
+
+/** Every field optional — omitted means "leave as is", same convention as TransactionPatch. */
+export interface ProfilePatch {
+  fullName?: string;
+  locale?: string;
+  currency?: string;
 }
 
 export const api = {
@@ -164,6 +174,29 @@ export const api = {
     return request("/api/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({ token, newPassword }),
+    });
+  },
+
+  updateProfile(patch: ProfilePatch): Promise<AuthUser> {
+    return request<AuthUser>("/api/auth/me", {
+      method: "PATCH",
+      body: JSON.stringify(patch),
+    });
+  },
+
+  /** Re-verifies the current password server-side. Invalidates every active session on success. */
+  changePassword(oldPassword: string, newPassword: string): Promise<void> {
+    return request("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ oldPassword, newPassword }),
+    });
+  },
+
+  /** Irreversible — deletes the account, every transaction/document/setting, and all sessions. */
+  deleteAccount(password: string): Promise<void> {
+    return request("/api/auth/me", {
+      method: "DELETE",
+      body: JSON.stringify({ password }),
     });
   },
 

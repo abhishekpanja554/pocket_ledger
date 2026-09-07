@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { useId, useState } from "react";
 import { useUi } from "../App";
+import { AccountSettings } from "../components/AccountSettings";
 import {
   Card,
   CardHead,
@@ -331,6 +332,9 @@ export function Settings() {
         />
         <ThemePicker value={theme} onChange={setThemeChoice} />
       </Card>
+
+      {/* ---------------------------------------------------------- account */}
+      <AccountSettings />
 
       {/* ---------------------------------------------------------- session */}
       <Card>

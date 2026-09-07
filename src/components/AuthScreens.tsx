@@ -4,7 +4,7 @@ import { ApiError, type AuthUser } from "../lib/api";
 import { Field, Notice, Spinner } from "./ui";
 
 /** A password input with a show/hide toggle — every password field uses this. */
-function PasswordField({
+export function PasswordField({
   id,
   value,
   onChange,
